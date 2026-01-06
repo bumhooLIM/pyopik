@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyopik"
+version = "0.1.0"
+description = "Intrinsic collision probability calculator based on Dell'Oro & Paolicchi (1998)"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "MIT License"}
+authors = [
+  {name = "Your Name", email = "your.email@example.com"},
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Intended Audience :: Science/Research",
+]
+dependencies = [
+    "numpy>=1.18.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/yourusername/pyopik"
+"Bug Tracker" = "https://github.com/yourusername/pyopik/issues"
+
+[tool.setuptools]
+py-modules = ["pyopik"]
