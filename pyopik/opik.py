@@ -85,6 +85,13 @@ def opik_probability(a, e, i, a0, e0, i0, N=1000000, return_velocity=True):
         P_i (float): Intrinsic collisional probability [km(-2) yr(-1)]
         U   (float): Mean impact velocity [km s(-1)] (Returned if return_velocity is True)
     """
+    # --- ERROR HANDLING FOR e=0 ---
+    # The formalism relies on solving for f via (1/e)*(p/r - 1).
+    # If e is 0 (circular), this is undefined.
+    # We treat this case as having 0 probability in this Monte Carlo method 
+    # because the likelihood of a random point r falling exactly on r=a is negligible.
+    if e <= 1e-16:
+        return (0.0, 0.0) if return_velocity else 0.0
 
     # 1. Monte Carlo Sampling of Target (Object 2 / subscript 0)
     # We assume uniform distribution for Mean Anomaly implies weighting by residence time.
