@@ -167,10 +167,14 @@ def opik_probability(a, e, i, a0, e0, i0, N=10000, return_velocity=True):
     o1 = np.mod(o1, 2*np.pi)
     o2 = np.mod(o2, 2*np.pi)
 
-    # 6. Integration Summation
-    # There are 4 solution combinations for every valid point: (f1, o1), (f1, o2), (f2, o1), (f2, o2)
-    FUNC = np.zeros(mask.sum())
-    UU = np.zeros(mask.sum())
+    # # 6. Integration Summation
+    # # There are 4 solution combinations for every valid point: (f1, o1), (f1, o2), (f2, o1), (f2, o2)
+    # FUNC = np.zeros(mask.sum())
+    # UU = np.zeros(mask.sum())
+
+    # Accumulators
+    total_prob_sum = 0.0
+    weighted_velocity_sum = 0.0
 
     for f_sol, o_sol in itertools.product([f1, f2], [o1, o2]):
         
@@ -189,7 +193,7 @@ def opik_probability(a, e, i, a0, e0, i0, N=10000, return_velocity=True):
         # [cite_start]Relative Velocity U [cite: 88]
         u_sq = (vx - vx0)**2 + (vy - vy0)**2 + (vz - vz0)**2
         u = np.sqrt(u_sq)
-        UU += u
+        # UU += u
 
         # [cite_start]Jacobian Determinant (Transformation from elements to Cartesian) [cite: 493]
         # detJ = r^2 * sin(beta) ... 
@@ -203,23 +207,46 @@ def opik_probability(a, e, i, a0, e0, i0, N=10000, return_velocity=True):
         del_f0 = (1 - e0**2)**1.5 / (1 + e0 * np.cos(f0_valid))**2 / (2*np.pi)**3
         DEL = del_f * del_f0
 
-        # [cite_start]Integrand [cite: 9]
-        # P_i integrand = pi * DEL * (U / detJ)
-        # Units converted to [km^-2 yr^-1]
-        func = np.pi * DEL * (u / detJ) * KM_TO_AU**2 * YR_TO_SEC
-        FUNC += func
+        # # [cite_start]Integrand [cite: 9]
+        # # P_i integrand = pi * DEL * (U / detJ)
+        # # Units converted to [km^-2 yr^-1]
+        # func = np.pi * DEL * (u / detJ) * KM_TO_AU**2 * YR_TO_SEC
+        # FUNC += func
+        
+        # Integrand (Probability Density)
+        # Handle singularity where detJ is close to 0
+        with np.errstate(divide='ignore', invalid='ignore'):
+            prob_density = np.pi * DEL * (u / detJ) * KM_TO_AU**2 * YR_TO_SEC
+            # If detJ is 0, prob_density is Inf. MC handles this by effectively 
+            # requiring large N, but we should clear NaNs.
+            prob_density = np.nan_to_num(prob_density)
+
+        # Accumulate
+        total_prob_sum += np.sum(prob_density)
+        weighted_velocity_sum += np.sum(u * prob_density) # Correct weighting
 
     # 7. Final Integration
     # Average over N samples (Monte Carlo)
-    P_i = ((2*np.pi)**3 / N) * np.sum(FUNC)
+    # P_i = ((2*np.pi)**3 / N) * np.sum(FUNC)
+    P_i = ((2 * np.pi)**3 / N) * total_prob_sum
 
-    # Mean Velocity
-    # Weighted average of velocity by the probability flux
+    # # Mean Velocity
+    # # Weighted average of velocity by the probability flux
+    # if return_velocity:
+    #     if np.sum(FUNC) > 0:
+    #         # Note: The original code divides by 4. This is because UU summed 4 solutions, 
+    #         # and FUNC summed 4 solutions. The weights cancel out correctly.
+    #         U_avg = np.average(UU, weights=FUNC) / 4 / KM_TO_AU
+    #     else:
+    #         U_avg = 0.0
+    #     return P_i, U_avg
+    
+    # return P_i
+
     if return_velocity:
-        if np.sum(FUNC) > 0:
-            # Note: The original code divides by 4. This is because UU summed 4 solutions, 
-            # and FUNC summed 4 solutions. The weights cancel out correctly.
-            U_avg = np.average(UU, weights=FUNC) / 4 / KM_TO_AU
+        if total_prob_sum > 0:
+            # Velocity is U converted to km/s
+            U_avg = (weighted_velocity_sum / total_prob_sum) / KM_TO_AU
         else:
             U_avg = 0.0
         return P_i, U_avg
