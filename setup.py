@@ -11,7 +11,7 @@ setup(
     url="https://github.com/yourusername/pyopik",
     
     # This tells setuptools that your source code is a single file named pyopik.py
-    py_modules=["pyopik"],
+    packages = ["pyopik"],
     
     # Dependencies required to run the code
     install_requires=[

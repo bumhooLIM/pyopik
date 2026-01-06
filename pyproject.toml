@@ -27,4 +27,4 @@ dependencies = [
 "Bug Tracker" = "https://github.com/yourusername/pyopik/issues"
 
 [tool.setuptools]
-py-modules = ["pyopik"]
+packages = ["pyopik"]

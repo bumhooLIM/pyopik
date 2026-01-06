@@ -1,1 +1,1 @@
-from opik import *
+from .opik import *
