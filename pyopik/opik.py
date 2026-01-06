@@ -55,22 +55,21 @@ def _kepler_velocity(a, e, i, f, w, o, mu=MU_SUN):
     # Orbital plane coordinates components
     # radial and tangential components could be used, but using direct rotation matrix application:
     # This matches the Dell'Oro Appendix logic or standard celestial mechanics.
-    # The original code implementation:
     term1 = np.sqrt(mu/p)
     vx = -term1 * (co*(np.sin(w+f)+e*sw) + so*(np.cos(w+f)+e*cw)*ci)
     vy = -term1 * (so*(np.sin(w+f)+e*sw) - co*(np.cos(w+f)+e*cw)*ci)
     vz = term1 * (np.cos(w+f)+e*cw)*si
+    
+    return vx, vy, vz # [au s(-1)]
 
-    return vx, vy, vz
 
-
-def opik_probability(a, e, i, a0, e0, i0, N=10000, return_velocity=True):
+def opik_probability(a, e, i, a0, e0, i0, N=1000000, return_velocity=True):
     """
     Calculate intrinsic collisional probability between two orbits.
 
     This function performs a Monte Carlo integration over the target orbit (index 0)
     to find intersection points with the projectile orbit (no index), solving for
-    [cite_start]geometric intersection as defined in Dell'Oro & Paolicchi (1998) Eq 9 and Appendix. [cite: 112, 440]
+    [cite_start] geometric intersection as defined in Dell'Oro & Paolicchi (1998) Eq 9 and Appendix. [cite: 112, 440]
 
     Parameters:
         a  (float): Semi-major axis of object 1 [au]
@@ -79,7 +78,7 @@ def opik_probability(a, e, i, a0, e0, i0, N=10000, return_velocity=True):
         a0 (float): Semi-major axis of object 2 [au]
         e0 (float): Eccentricity of object 2
         i0 (float): Inclination of object 2 [rad]
-        N  (int)  : Number of Monte Carlo samples (default: 10000)
+        N  (int)  : Number of Monte Carlo samples (default: 1000000)
         return_velocity (bool): If True, returns (P_i, U). If False, returns P_i.
 
     Returns:
@@ -92,7 +91,6 @@ def opik_probability(a, e, i, a0, e0, i0, N=10000, return_velocity=True):
     # The code samples True Anomaly (f0) uniformly then applies weighting (DEL) later.
     f0 = 2 * np.pi * np.random.rand(N)
     w0 = 2 * np.pi * np.random.rand(N)
-    # [cite_start]
     o0 = np.zeros(N) # Fix node to 0 (relative inclination matters) [cite: 174]
 
     # Pre-calculate constants for Object 2 (Target)
@@ -100,7 +98,7 @@ def opik_probability(a, e, i, a0, e0, i0, N=10000, return_velocity=True):
     # Pre-calculate constants for Object 1 (Projectile)
     p = a * (1 - e**2)
     
-    # [cite_start]2. Target Position in Cartesian Space [cite: 448]
+    # 2. Target Position in Cartesian Space [cite: 448]
     r = p0 / (1 + e0 * np.cos(f0))
     # Coordinates rotated to a frame where Object 2's node is 0
     # x, y, z calculations
@@ -115,7 +113,7 @@ def opik_probability(a, e, i, a0, e0, i0, N=10000, return_velocity=True):
     y = r * cw0f0 * so0 + r * sw0f0 * co0 * ci0
     z = r * sw0f0 * si0
 
-    # [cite_start]3. Geometric Filtering [cite: 451]
+    # 3. Geometric Filtering [cite: 451]
     lt = np.arcsin(z/r)   # Heliocentric latitude
     ln = np.arctan2(y, x) # Heliocentric longitude
 
@@ -151,7 +149,7 @@ def opik_probability(a, e, i, a0, e0, i0, N=10000, return_velocity=True):
     # Velocity of Target (Object 2)
     vx0, vy0, vz0 = _kepler_velocity(a0, e0, i0, f0_valid, w0_valid, o0_valid)
 
-    # [cite_start]5. Solve for Projectile (Object 1) Intersection Parameters [cite: 454-457]
+    # 5. Solve for Projectile (Object 1) Intersection Parameters [cite: 454-457]
     # True Anomaly solutions (f1, f2)
     arg_f = (1/e) * (p/r_valid - 1)
     f1 = np.arccos(arg_f)
@@ -167,15 +165,13 @@ def opik_probability(a, e, i, a0, e0, i0, N=10000, return_velocity=True):
     o1 = np.mod(o1, 2*np.pi)
     o2 = np.mod(o2, 2*np.pi)
 
-    # # 6. Integration Summation
-    # # There are 4 solution combinations for every valid point: (f1, o1), (f1, o2), (f2, o1), (f2, o2)
-    # FUNC = np.zeros(mask.sum())
-    # UU = np.zeros(mask.sum())
-
+    # 6. Integration Summation
+    
     # Accumulators
     total_prob_sum = 0.0
     weighted_velocity_sum = 0.0
-
+    
+    # There are 4 solution combinations for every valid point: (f1, o1), (f1, o2), (f2, o1), (f2, o2)
     for f_sol, o_sol in itertools.product([f1, f2], [o1, o2]):
         
         # Calculate Argument of Perihelion (w) for Projectile to hit point (x,y,z)
@@ -190,29 +186,23 @@ def opik_probability(a, e, i, a0, e0, i0, N=10000, return_velocity=True):
         # Velocity of Projectile (Object 1)
         vx, vy, vz = _kepler_velocity(a, e, i, f_sol, w_sol, o_sol)
 
-        # [cite_start]Relative Velocity U [cite: 88]
+        # Relative Velocity U [cite: 88]
         u_sq = (vx - vx0)**2 + (vy - vy0)**2 + (vz - vz0)**2
         u = np.sqrt(u_sq)
         # UU += u
 
-        # [cite_start]Jacobian Determinant (Transformation from elements to Cartesian) [cite: 493]
+        # Jacobian Determinant (Transformation from elements to Cartesian) [cite: 493]
         # detJ = r^2 * sin(beta) ... 
         # Analytical form: a^3 * (1-e^2)^3 / (1+e*cos f)^4 * e * |sin f * cos(f+w) * sin i|
         detJ = (p**3 / (1 + e*np.cos(f_sol))**4) * e * \
                np.abs(np.sin(f_sol) * cos_wf * np.sin(i))
 
-        # [cite_start]Density Weighting (Residence Time) [cite: 182]
+        # Density Weighting (Residence Time) [cite: 182]
         # Because we sampled f0 uniformly, we must weight by 1/r_dot ~ 1/(1+e*cos f)^2
         del_f = (1 - e**2)**1.5 / (1 + e * np.cos(f_sol))**2 / (2*np.pi)**3
         del_f0 = (1 - e0**2)**1.5 / (1 + e0 * np.cos(f0_valid))**2 / (2*np.pi)**3
         DEL = del_f * del_f0
 
-        # # [cite_start]Integrand [cite: 9]
-        # # P_i integrand = pi * DEL * (U / detJ)
-        # # Units converted to [km^-2 yr^-1]
-        # func = np.pi * DEL * (u / detJ) * KM_TO_AU**2 * YR_TO_SEC
-        # FUNC += func
-        
         # Integrand (Probability Density)
         # Handle singularity where detJ is close to 0
         with np.errstate(divide='ignore', invalid='ignore'):
@@ -227,21 +217,7 @@ def opik_probability(a, e, i, a0, e0, i0, N=10000, return_velocity=True):
 
     # 7. Final Integration
     # Average over N samples (Monte Carlo)
-    # P_i = ((2*np.pi)**3 / N) * np.sum(FUNC)
     P_i = ((2 * np.pi)**3 / N) * total_prob_sum
-
-    # # Mean Velocity
-    # # Weighted average of velocity by the probability flux
-    # if return_velocity:
-    #     if np.sum(FUNC) > 0:
-    #         # Note: The original code divides by 4. This is because UU summed 4 solutions, 
-    #         # and FUNC summed 4 solutions. The weights cancel out correctly.
-    #         U_avg = np.average(UU, weights=FUNC) / 4 / KM_TO_AU
-    #     else:
-    #         U_avg = 0.0
-    #     return P_i, U_avg
-    
-    # return P_i
 
     if return_velocity:
         if total_prob_sum > 0:
